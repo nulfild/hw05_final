@@ -33,6 +33,7 @@ class PostCreateFormTests(TestCase):
         shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
 
     def setUp(self):
+        self.guest_client = Client()
         self.authorized_client = Client()
         self.authorized_client.force_login(self.user)
 
@@ -135,7 +136,7 @@ class PostCreateFormTests(TestCase):
         ]
         for rev in reverses:
             with self.subTest(rev=rev):
-                response = self.authorized_client.get(rev)
+                response = self.guest_client.get(rev)
                 self.assertEqual(response.context.get('page_obj')[0].image,
                                  'posts/small2.gif')
 
@@ -161,13 +162,13 @@ class PostCreateFormTests(TestCase):
             text='Тестовый пост',
             image=uploaded,
         )
-        response = self.authorized_client.get(
+        response = self.guest_client.get(
             reverse('posts:post_detail', kwargs={'post_id': post.pk})
         )
         self.assertEqual(response.context.get('post').image,
                          'posts/small3.gif')
 
-    def test_adding_new_commnet(self):
+    def test_adding_new_comment(self):
         """После успешной отправки комментарий появляется на странице поста"""
         comments_count = Comment.objects.count()
 
@@ -188,3 +189,15 @@ class PostCreateFormTests(TestCase):
                 author=self.user,
             ).exists()
         )
+
+    def test_urls_redirect(self):
+        """Проверка редиректа анонимного пользователя
+            на странциу авторизации."""
+        urls = {
+            '/create/': '/auth/login/?next=/create/',
+            '/posts/1/edit/': '/auth/login/?next=/posts/1/edit/',
+        }
+        for url, redirect in urls.items():
+            with self.subTest(url=url):
+                response = self.guest_client.get(url, follow=True)
+                self.assertRedirects(response, redirect)

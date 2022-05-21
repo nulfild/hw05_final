@@ -16,24 +16,20 @@ class PostPagesTest(TestCase):
             slug='test_group',
             description='Тестовая группа для теста'
         )
-        for i in range(13):
+        for i in range(12):
             Post.objects.create(
                 text=f'Тестовый пост {i}',
                 author=cls.user_author,
                 group=cls.group
             )
+        # Последний пост
+        cls.post = Post.objects.create(
+            text='Тестовый пост 12',
+            author=cls.user_author,
+            group=cls.group
+        )
 
-    def setUp(self):
-        self.guest_client = Client()
-        self.user = User.objects.create_user(username='HasNoName')
-        self.authorized_client = Client()
-        self.authorized_client.force_login(self.user)
-        self.author_of_post = Client()
-        self.author_of_post.force_login(self.user_author)
-
-    def test_pages_uses_correct_template(self):
-        """URL-адрес использует соответствующий шаблон."""
-        templates_pages_names = {
+        cls.templates_pages_names = {
             reverse('posts:index'): 'posts/index.html',
             reverse('posts:group_list',
                     kwargs={'slug': 'test_group'}): 'posts/group_list.html',
@@ -45,7 +41,18 @@ class PostPagesTest(TestCase):
                     kwargs={'post_id': '1'}): 'posts/create_post.html',
             reverse('posts:post_create'): 'posts/create_post.html',
         }
-        for reverse_name, template in templates_pages_names.items():
+
+    def setUp(self):
+        self.guest_client = Client()
+        self.user = User.objects.create_user(username='HasNoName')
+        self.authorized_client = Client()
+        self.authorized_client.force_login(self.user)
+        self.author_of_post = Client()
+        self.author_of_post.force_login(self.user_author)
+
+    def test_pages_uses_correct_template(self):
+        """URL-адрес использует соответствующий шаблон."""
+        for reverse_name, template in self.templates_pages_names.items():
             with self.subTest(reverse_name=reverse_name):
                 response = self.author_of_post.get(reverse_name)
                 self.assertTemplateUsed(response, template)
@@ -54,7 +61,7 @@ class PostPagesTest(TestCase):
         """Шаблон index сформирован с правильным контекстом."""
         response = self.author_of_post.get(reverse('posts:index'))
         self.assertEqual(response.context.get('page_obj')[0].text,
-                         'Тестовый пост 12')
+                         self.post.text)
         self.assertEqual(response.context.get('page_obj')[0].author,
                          self.user_author)
 
@@ -90,7 +97,7 @@ class PostPagesTest(TestCase):
     def test_post_detail(self):
         """Шаблон post_detail сформирован с правильным контекстом."""
         response = self.author_of_post.get(
-            reverse('posts:post_detail', kwargs={'post_id': '13'})
+            reverse('posts:post_detail', kwargs={'post_id': self.post.pk})
         )
         self.assertEqual(response.context.get('post').text,
                          'Тестовый пост 12')
@@ -192,6 +199,7 @@ class PostPagesTest(TestCase):
         response_2 = self.authorized_client.get(reverse("posts:index"))
         self.assertNotEqual(response_1.content, response_2.content)
 
+    # Тесты на то, что человек может отписаться, есть в файле test_urls
     def test_posts_in_follow_page(self):
         """Новая запись пользователя появляется в ленте тех,
            кто на него подписан и не появляется в ленте тех,
